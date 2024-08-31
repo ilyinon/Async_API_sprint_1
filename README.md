@@ -9,3 +9,14 @@
 Вы можете разбить имеющиеся задачи на более маленькие, например, распределять между участниками команды не большие куски задания, а маленькие подзадачи. В таком случае не забудьте зафиксировать изменения в issues в репозитории.
 
 **От каждого разработчика ожидается выполнение минимум 40% от общего числа стори поинтов в спринте.**
+
+
+curl -X DELETE "localhost:9200/movies?pretty"
+curl -XGET 'http://127.0.0.1:9200/movies/_mapping'
+
+curl -XGET 'http://localhost:9200/_cat/indices?v'
+
+curl -X PUT -H "Content-Type: application/json" -d @./data/movies_index.json "localhost:9200/movies?pretty"
+
+
+docker run -ti -v ./data/:/data --network=async_api_sprint_1_default  elasticdump/elasticsearch-dump:v6.111.0  --input=/data/movies_data.json --output=http://elastic:9200/movies
