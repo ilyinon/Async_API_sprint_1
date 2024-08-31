@@ -1,2 +1,6 @@
 redis==5.0.8
-elasticsearch==8.15.0
+elasticsearch[async]==8.15.0
+fastapi==0.111.0
+pydantic==2.8.2
+uvicorn[standard]
+gunicorn

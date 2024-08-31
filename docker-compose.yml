@@ -4,10 +4,15 @@ services:
 
   app:
     build: app
-    env_file:
-      - ./.env_example
-    entrypoint: /opt/app/entrypoint.sh
     restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - PROJECT_NAME=movies
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - ELASTIC_HOST=elastic
+      - ELASTIC_PORT=9200
     depends_on:
       elastic:
         condition: service_healthy
@@ -19,13 +24,13 @@ services:
   elastic:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
     restart: unless-stopped
+    ports:
+      - "9200:9200"
     volumes:
       - elastic_data:/usr/share/elasticsearch/data
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
-    ports:
-      - "9200:9200"
     healthcheck:
       test: curl -s http://elastic:9200 >/dev/null || exit 1
       interval: 5s
@@ -35,6 +40,8 @@ services:
   redis:
     image: redis:7.4.0
     restart: unless-stopped
+    ports:
+      - "6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
