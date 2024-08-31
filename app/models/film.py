@@ -4,17 +4,17 @@ from uuid import UUID
 from models.base import OrjsonBaseModel
 
 class Genre(OrjsonBaseModel):
-    id: str
+    id: UUID
     name: str
     description: Optional[str] = None
 
 class Person(OrjsonBaseModel):
-    id: str
+    id: UUID
     full_name: str
     role: Optional[str] = None
 
 class Film(OrjsonBaseModel):
-    id: str
+    id: UUID
     title: str
     description: Optional[str] = None
     creation_date: Optional[datetime] = None
