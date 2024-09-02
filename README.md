@@ -1,22 +1,28 @@
-# Проектная работа 4 спринта
+0. При настройке интеграции с остальными компонентами нужно корреткно заполнить .env
 
-**Важное сообщение для тимлида:** для ускорения проверки проекта укажите ссылку на приватный репозиторий с командной работой в файле readme и отправьте свежее приглашение на аккаунт [BlueDeep](https://github.com/BigDeepBlue).
+1. Для запуска проекта нужно выполнить команду
+`docker-comose-up -d --build`
 
-В папке **tasks** ваша команда найдёт задачи, которые необходимо выполнить в первом спринте второго модуля.  Обратите внимание на задачи **00_create_repo** и **01_create_basis**. Они расцениваются как блокирующие для командной работы, поэтому их необходимо выполнить как можно раньше.
+2. Во время отладки используются данные выгруженные из ETL задания часть три по, чтобы загрузить из в elastic выполните команды:
 
-Мы оценили задачи в стори поинтах, значения которых брались из [последовательности Фибоначчи](https://ru.wikipedia.org/wiki/Числа_Фибоначчи) (1,2,3,5,8,…).
+`curl -X PUT -H "Content-Type: application/json" -d @./data/movies_index.json "localhost:9200/movies?pretty"`
+`curl -X PUT -H "Content-Type: application/json" -d @./data/genres_index.json "localhost:9200/genres?pretty"`
+`curl -X PUT -H "Content-Type: application/json" -d @./data/persons_index.json "localhost:9200/persons?pretty"` 
 
-Вы можете разбить имеющиеся задачи на более маленькие, например, распределять между участниками команды не большие куски задания, а маленькие подзадачи. В таком случае не забудьте зафиксировать изменения в issues в репозитории.
-
-**От каждого разработчика ожидается выполнение минимум 40% от общего числа стори поинтов в спринте.**
-
-
-curl -X DELETE "localhost:9200/movies?pretty"
-curl -XGET 'http://127.0.0.1:9200/movies/_mapping'
-
-curl -XGET 'http://localhost:9200/_cat/indices?v'
-
-curl -X PUT -H "Content-Type: application/json" -d @./data/movies_index.json "localhost:9200/movies?pretty"
+Для загрузки данных:
+`docker run -ti -v ./data/:/data --network=async_api_sprint_1_default  elasticdump/elasticsearch-dump:v6.111.0  --input=/data/movies_data.json --output=http://elastic:9200/movies`
+`docker run -ti -v ./data/:/data --network=async_api_sprint_1_default  elasticdump/elasticsearch-dump:v6.111.0  --input=/data/genres_data.json --output=http://elastic:9200/genres`
+`docker run -ti -v ./data/:/data --network=async_api_sprint_1_default  elasticdump/elasticsearch-dump:v6.111.0  --input=/data/persons_data.json --output=http://elastic:9200/persons`
 
 
-docker run -ti -v ./data/:/data --network=async_api_sprint_1_default  elasticdump/elasticsearch-dump:v6.111.0  --input=/data/movies_data.json --output=http://elastic:9200/movies
+Посмотреть данные по индексам 
+`curl -XGET 'http://127.0.0.1:9200/movies/_mapping'`
+`curl -XGET 'http://127.0.0.1:9200/genres/_mapping'`
+`curl -XGET 'http://127.0.0.1:9200/persons/_mapping'`
+
+Посмотреть список индексов
+`curl -XGET 'http://localhost:9200/_cat/indices?v'`
+
+
+3. Пример запросов:
+`curl http://localhost:80/api/v1/films/6ecc7a32-14a1-4da8-9881-bf81f0f09897`
