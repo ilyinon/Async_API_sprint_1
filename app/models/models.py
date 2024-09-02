@@ -18,8 +18,6 @@ class Film(OrjsonBaseModel):
     title: str
     description: Optional[str] = None
     creation_date: Optional[datetime] = None
-    file_path: Optional[str] = None
-    rating: Optional[float] = None
-    type: str
+    imdb_rating: Optional[float] = None
     genres: list[Genre]
     persons: list[Person]
