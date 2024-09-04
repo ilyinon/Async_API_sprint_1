@@ -24,8 +24,12 @@ class Film(OrjsonBaseModel):
     summary="Список фильмов",
     description="Получить список фильмов",
 )
-async def films_list(film_service: FilmService = Depends(get_film_service)):
-    films = await film_service.get_list()
+async def films_list(
+    film_service: FilmService = Depends(get_film_service),
+    page_size: Annotated[int, Query(description="Фильмов на страницу", ge=1)] = 50,
+    page_number: Annotated[int, Query(description="Номер страницы", ge=1)] = 1,
+) -> Film:
+    films = await film_service.get_list(page_size, page_number)
     return [
         Film(uuid=film.id, title=film.title, imdb_rating=film.imdb_rating)
         for film in films

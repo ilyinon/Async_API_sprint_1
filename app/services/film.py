@@ -34,10 +34,15 @@ class FilmService:
 
         return film
 
-    async def get_list(self):
+    async def get_list(self, page_size, page_number):
         try:
             films_list = await self.elastic.search(
-                index="movies", query={"match_all": {}}
+                index="movies",
+                body={
+                    "query": {"match_all": {}},
+                    "from": page_number,
+                    "size": page_size,
+                },
             )
         except NotFoundError:
             return None
