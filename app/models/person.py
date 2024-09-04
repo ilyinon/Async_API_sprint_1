@@ -1,0 +1,15 @@
+from typing import Optional
+from uuid import UUID
+
+from models.base import OrjsonBaseModel
+
+
+class PersonFilm(OrjsonBaseModel):
+    id: UUID  # ID of film
+    roles: list[str]
+
+
+class Person(OrjsonBaseModel):
+    id: UUID
+    full_name: str
+    films: Optional[list[PersonFilm]]
