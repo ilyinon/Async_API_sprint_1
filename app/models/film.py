@@ -1,8 +1,9 @@
 from typing import Optional
 from uuid import UUID
-from genre import Genre
-from person import Person
-from base import OrjsonBaseModel
+
+from models.base import OrjsonBaseModel
+from models.genre import Genre
+from models.person import Person
 
 
 class Film(OrjsonBaseModel):
