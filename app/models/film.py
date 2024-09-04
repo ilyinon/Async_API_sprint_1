@@ -9,7 +9,12 @@ from models.person import Person
 class Film(OrjsonBaseModel):
     id: UUID
     title: str
-    description: Optional[str] = None
     imdb_rating: Optional[float] = None
+
+
+class FilmDetail(Film):
+    description: Optional[str] = None
     genres: list[Genre]
-    persons: list[Person]
+    actors: list[Person]
+    writers: list[Person]
+    directors: list[Person]
