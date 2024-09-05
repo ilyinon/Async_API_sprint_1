@@ -34,14 +34,36 @@ class FilmService:
 
         return film
 
-    async def get_list(self):
+    async def get_list(self, sort, genre, page_size, page_number):
+        query = {"match_all": {}}
+        logger.info("Search type %s", sort)
+        sort_type = "asc"
+        if sort[0].startswith("-"):
+            sort_type = "desc"
+        genre_response = await self.elastic.search(
+            index="genres", query={"multi_match": {"query": genre}}
+        )
+        genre_names = " ".join(
+            [genre["_source"]["name"] for genre in genre_response["hits"]["hits"]]
+        )
+
+        logger.info("Genre list %s", genre_names)
+
+        query = {"match": {"genres": genre_names}}
+
         try:
             films_list = await self.elastic.search(
-                index="movies", query={"match_all": {}}
+                index="movies",
+                body={
+                    "query": query,
+                    "sort": [{"imdb_rating": {"order": sort_type}}],
+                    "from": (page_size - 1) * page_number,
+                    "size": page_size,
+                },
             )
+            logger.info("Found %s", films_list)
         except NotFoundError:
             return None
-        logger.info("%s", films_list)
         return [Film(**get_film["_source"]) for get_film in films_list["hits"]["hits"]]
 
     async def search_film(self, query):
@@ -63,25 +85,17 @@ class FilmService:
         answer["id"] = doc["_source"]["id"]
         answer["title"] = doc["_source"]["title"]
         answer["imdb_rating"] = doc["_source"]["imdb_rating"]
-        # return Film(**doc['_source'])
         return Film(**answer)
 
     async def _film_from_cache(self, film_id: UUID) -> Optional[Film]:
-        # Пытаемся получить данные о фильме из кеша, используя команду get
-        # https://redis.io/commands/get/
         data = await self.redis.get(str(film_id))
         if not data:
             return None
 
-        # pydantic предоставляет удобное API для создания объекта моделей из json
         film = Film.parse_raw(data)
         return film
 
     async def _put_film_to_cache(self, film: Film):
-        # Сохраняем данные о фильме, используя команду set
-        # Выставляем время жизни кеша — 5 минут
-        # https://redis.io/commands/set/
-        # pydantic позволяет сериализовать модель в json
         await self.redis.set(str(film.id), film.json(), FILM_CACHE_EXPIRE_IN_SECONDS)
 
 
