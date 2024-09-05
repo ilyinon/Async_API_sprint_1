@@ -1,10 +1,14 @@
 from typing import Optional
 from uuid import UUID
-
-from models.base import OrjsonBaseModel
+from .genre import Genre
+from .person import Person
+from .base import OrjsonBaseModel
 
 
 class Film(OrjsonBaseModel):
     id: UUID
     title: str
-    imdb_rating: Optional[float]
+    description: Optional[str] = None
+    imdb_rating: Optional[float] = None
+    genres: list[Genre]
+    persons: list[Person]
