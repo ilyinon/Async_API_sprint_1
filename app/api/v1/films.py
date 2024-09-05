@@ -77,3 +77,43 @@ async def search_film(
         FilmResponse(uuid=film.id, title=film.title, imdb_rating=film.imdb_rating)
         for film in films
     ]
+
+
+@router.get(
+    "/{film_id}",
+    response_model=FilmDetailResponse,
+    summary="Информация по фильму",
+    description="Полная информация по фильму",
+)
+async def genre_details(
+    film_id: UUID, film_service: FilmService = Depends(get_film_service)
+) -> FilmDetailResponse:
+    film_detail = await film_service.get_by_id(film_id)
+
+    if not film_detail:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail=f"film with id {film_id} not found"
+        )
+
+    return FilmDetailResponse(
+        id=str(film_detail.id),
+        title=film_detail.title,
+        imdb_rating=film_detail.imdb_rating,
+        description=film_detail.description,
+        genres=[
+            GenreResponse(uuid=genre.id, name=genre.name)
+            for genre in film_detail.genres
+        ],
+        actors=[
+            PersonResponse(id=str(actor.id), full_name=actor.full_name)
+            for actor in film_detail.actors
+        ],
+        writers=[
+            PersonResponse(id=str(writer.id), full_name=writer.full_name)
+            for writer in film_detail.writers
+        ],
+        directors=[
+            PersonResponse(id=str(director.id), full_name=director.full_name)
+            for director in film_detail.directors
+        ],
+    )
