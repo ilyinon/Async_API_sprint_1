@@ -81,9 +81,14 @@ class FilmService:
         try:
             doc = await self.elastic.get(index="movies", id=film_id)
             genres = doc["_source"].get("genres", [])
-            if isinstance(genres, str):
-                genres = []
+            logger.info("genres list: %s", genres)
+            genres_list = []
+            for genre in genres:
+                response = await self.elastic.search(
+                    index="genres", query={"multi_match": {"query": genre}}
+                )
 
+                genres_list.append(response["hits"]["hits"][0]["_source"])
             actors = doc["_source"].get("actors", [])
             if isinstance(actors, str):
                 actors = []
@@ -104,11 +109,7 @@ class FilmService:
             "title": doc["_source"].get("title"),
             "imdb_rating": doc["_source"].get("imdb_rating"),
             "description": doc["_source"].get("description", ""),
-            "genres": [
-                {"id": genre.get("id"), "name": genre.get("name")}
-                for genre in genres
-                if isinstance(genre, dict)
-            ],
+            "genres": genres_list,
             "actors": [
                 {"id": actor.get("id"), "full_name": actor.get("name")}
                 for actor in actors

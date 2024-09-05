@@ -101,7 +101,7 @@ async def genre_details(
         imdb_rating=film_detail.imdb_rating,
         description=film_detail.description,
         genres=[
-            GenreResponse(uuid=genre.id, name=genre.name)
+            GenreResponse(id=str(genre.id), name=genre.name)
             for genre in film_detail.genres
         ],
         actors=[
