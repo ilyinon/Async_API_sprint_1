@@ -8,7 +8,7 @@ from uuid import UUID
 
 from db.elastic import get_elastic
 from db.redis import get_redis
-from models.person import Person, PersonFilm
+from models.person import Person, PersonFilm, Film
 
 PERSON_CACHE_EXPIRE_IN_SECONDS = 60 * 5
 
@@ -97,6 +97,73 @@ class PersonService:
             get_person["_source"]["films"] = await self.get_person_films(get_person["_source"]["id"])
         return [Person(**get_person["_source"]) for get_person in persons_list["hits"]["hits"]]
 
+    async def get_person_film_list(self, person_id):
+        try:
+            film_list = await self.elastic.search(
+                index='movies',
+                query={
+                    "bool": {
+                        "should": [
+                            {
+                                "nested": {
+                                    "path": "directors",
+                                    "query": {
+                                        "term": {
+                                            "directors.id": person_id
+                                        }
+                                    }
+                                },
+                            },
+                            {
+                                "nested": {
+                                    "path": "actors",
+                                    "query": {
+                                        "term": {
+                                            "actors.id": person_id
+                                        }
+                                    }
+                                },
+                            },
+                            {
+                                "nested": {
+                                    "path": "writers",
+                                    "query": {
+                                        "term": {
+                                            "writers.id": person_id
+                                        }
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                }
+            )
+        except NotFoundError:
+            return None
+        return [Film(**film["_source"]) for film in film_list["hits"]["hits"]]
+
+    async def get_search_list(self, query, page_number, page_size):
+        logger.info(f"searching for {query}")
+        offset = (page_number - 1) * page_size
+        logger.info(f"offset = {offset}")
+        try:
+            persons_list = await self.elastic.search(
+                index="persons",
+                from_=offset,
+                size=page_size,
+                query={
+                    "match": {
+                        "full_name": query
+                    }
+                }
+            )
+        except NotFoundError:
+            return None
+        for get_person in persons_list["hits"]["hits"]:
+            logger.info(get_person["_source"])
+            get_person["_source"]["films"] = await self.get_person_films(get_person["_source"]["id"])
+        return [Person(**get_person["_source"]) for get_person in persons_list["hits"]["hits"]]
+
     async def _get_person_from_elastic(self, person_id: UUID) -> Optional[Person]:
         try:
             doc = await self.elastic.get(index='persons', id=person_id)
@@ -106,7 +173,7 @@ class PersonService:
         answer["id"] = doc["_source"]["id"]
         answer["full_name"] = doc["_source"]["full_name"]
 
-        films = await self.get_person_films(person_id)
+        films = await self.get_person_films(answer["id"])
         answer["films"] = films
         return Person(**answer)
 

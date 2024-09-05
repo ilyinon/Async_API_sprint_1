@@ -13,3 +13,9 @@ class Person(OrjsonBaseModel):
     id: UUID
     full_name: str
     films: Optional[list[PersonFilm]]
+
+
+class Film(OrjsonBaseModel):
+    id: UUID
+    title: str
+    imdb_rating: Optional[float]
