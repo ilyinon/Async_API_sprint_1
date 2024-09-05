@@ -55,60 +55,24 @@ async def film_details(film_id: UUID, film_service: FilmService = Depends(get_fi
     directors = [PersonResponse(id=str(director.id), full_name=director.full_name) for director in film.directors]
 
     return FilmDetailResponse(
-        id=str(film.id),
-        title=film.title,
-        imdb_rating=film.imdb_rating,
-        description=film.description,
-        genres=genres,
-        actors=actors,
-        writers=writers,
-        directors=directors
+        id=str(film_detail.id),
+        title=film_detail.title,
+        imdb_rating=film_detail.imdb_rating,
+        description=film_detail.description,
+        genres=[
+            GenreResponse(id=str(genre.id), name=genre.name)
+            for genre in film_detail.genres
+        ],
+        actors=[
+            PersonResponse(id=str(actor.id), full_name=actor.full_name)
+            for actor in film_detail.actors
+        ],
+        writers=[
+            PersonResponse(id=str(writer.id), full_name=writer.full_name)
+            for writer in film_detail.writers
+        ],
+        directors=[
+            PersonResponse(id=str(director.id), full_name=director.full_name)
+            for director in film_detail.directors
+        ],
     )
-
-    # except HTTPException:
-    #     raise
-    # except Exception as e:
-    #     logger.error(f"Error fetching film details: {str(e)}")
-    #     raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail="Failed to fetch film details.")
-
-@router.get('/', response_model=SearchResponse)
-async def get_films(
-    sort: str = Query('-imdb_rating', description="Sort by field, default is -imdb_rating"),
-    genre: Optional[UUID] = Query(None, description="Filter by genre UUID"),
-    page: int = Query(1, ge=1, description="Page number"),
-    size: int = Query(10, ge=1, le=100, description="Page size"),
-    film_service: FilmService = Depends(get_film_service)
-) -> SearchResponse:
-    # try:
-    total, films = await film_service.get_films(sort=sort, genre=genre, page=page, size=size)
-    return SearchResponse(
-        total=total,
-        page=page,
-        size=size,
-        results=[FilmResponse(id=str(film.id), title=film.title, imdb_rating=film.imdb_rating) for film in films]
-    )
-
-    # except Exception as e:
-    #     logger.error(f"Error fetching films: {str(e)}")
-    #     raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail="Failed to fetch films.")
-
-
-@router.get('/search', response_model=SearchResponse)
-async def search_films(
-    query: str = Query(..., min_length=1, description="Search query"),
-    page: int = Query(1, ge=1, description="Page number"),
-    size: int = Query(10, ge=1, le=100, description="Page size"),
-    film_service: FilmService = Depends(get_film_service)
-) -> SearchResponse:
-    # try:
-    total, films = await film_service.search_films(query=query, page=page, size=size)
-    return SearchResponse(
-        total=total,
-        page=page,
-        size=size,
-        results=[FilmResponse(id=str(film.id), title=film.title, imdb_rating=film.imdb_rating) for film in films]
-    )
-
-    # except Exception as e:
-    #     logger.error(f"Error searching films: {str(e)}")
-    #     raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail="Failed to search films.")

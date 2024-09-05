@@ -88,49 +88,54 @@ class FilmService:
     async def _get_film_from_elastic(self, film_id: str) -> Optional[Film]:
         # try:
             doc = await self.elastic.get(index="movies", id=film_id)
-            logger.info(f"Elasticsearch response for film {film_id}: {doc}")
+            genres = doc["_source"].get("genres", [])
+            logger.info("genres list: %s", genres)
+            genres_list = []
+            for genre in genres:
+                response = await self.elastic.search(
+                    index="genres", query={"multi_match": {"query": genre}}
+                )
 
-            genres = []
-            # actors = []
-            # directors = []
-            # writers = []
+                genres_list.append(response["hits"]["hits"][0]["_source"])
+            actors = doc["_source"].get("actors", [])
+            if isinstance(actors, str):
+                actors = []
 
-            # Process genres (check for dict or string)
-            for genre in doc["_source"].get("genres", []):
-                if isinstance(genre, dict):
-                    genre_id = genre.get("id")
-                    genres.append(
-                        Genre(
-                            id=UUID(genre_id) if genre_id else None,
-                            name=genre.get("name"),
-                        )
-                    )
-                elif isinstance(genre, str):
-                    genres.append(Genre(id="", name=genre))
+            writers = doc["_source"].get("writers", [])
+            if isinstance(writers, str):
+                writers = []
 
-            actors = [Person(id="", full_name=name) for name in doc["_source"].get("actors_names", [])]
-            directors = [Person(id="", full_name=name) for name in doc["_source"].get("directors_names", [])]
-            writers = [Person(id="", full_name=name) for name in doc["_source"].get("writers_names", [])]
+            directors = doc["_source"].get("directors", [])
+            if isinstance(directors, str):
+                directors = []
+        except NotFoundError:
+            logger.error(f"Film with ID {film_id} not found in Elasticsearch")
+            return None
 
-            film_data = {
-                "id": UUID(doc["_source"].get("id")),
-                "title": doc["_source"].get("title"),
-                "imdb_rating": doc["_source"].get("imdb_rating"),
-                "description": doc["_source"].get("description", ""),
-                "genres": genres,
-                "actors": actors,
-                "directors": directors,
-                "writers": writers,
-            }
-
-            return Film(**film_data)
-
-        # except NotFoundError:
-        #     logger.error(f"Film with ID {film_id} not found in Elasticsearch")
-        #     return None
-        # except Exception as e:
-        #     logger.error(f"Elasticsearch fetch error for film {film_id}: {str(e)}")
-        #     return None
+        film_data = {
+            "id": doc["_source"].get("id"),
+            "title": doc["_source"].get("title"),
+            "imdb_rating": doc["_source"].get("imdb_rating"),
+            "description": doc["_source"].get("description", ""),
+            "genres": genres_list,
+            "actors": [
+                {"id": actor.get("id"), "full_name": actor.get("name")}
+                for actor in actors
+                if isinstance(actor, dict)
+            ],
+            "writers": [
+                {"id": writer.get("id"), "full_name": writer.get("name")}
+                for writer in writers
+                if isinstance(writer, dict)
+            ],
+            "directors": [
+                {"id": director.get("id"), "full_name": director.get("name")}
+                for director in directors
+                if isinstance(director, dict)
+            ],
+        }
+        logger.info("Film details | %s", film_data)
+        return FilmDetail(**film_data)
 
     async def _film_from_cache(self, film_id: str) -> Optional[Film]:
         # Attempt to retrieve the film data from the cache
