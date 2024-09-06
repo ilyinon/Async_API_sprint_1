@@ -1,5 +1,5 @@
-from typing import Optional
 from uuid import UUID
+from typing import Optional
 
 from models.base import OrjsonBaseModel
 from models.genre import Genre
