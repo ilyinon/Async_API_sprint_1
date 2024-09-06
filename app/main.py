@@ -1,4 +1,4 @@
-from api.v1 import films
+from api.v1 import films, genres, persons
 from core import config
 from db import elastic, redis
 from elasticsearch import AsyncElasticsearch
@@ -32,3 +32,5 @@ def hello_world():
 
 
 app.include_router(films.router, prefix="/api/v1/films", tags=["films"])
+app.include_router(genres.router, prefix="/api/v1/genres", tags=["genres"])
+app.include_router(persons.router, prefix="/api/v1/persons", tags=["persons"])

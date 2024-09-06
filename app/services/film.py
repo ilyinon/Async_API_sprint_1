@@ -34,6 +34,26 @@ class FilmService:
 
         return film
 
+    async def get_list(self):
+        try:
+            films_list = await self.elastic.search(
+                index="movies", query={"match_all": {}}
+            )
+        except NotFoundError:
+            return None
+        logger.info("%s", films_list)
+        return [Film(**get_film["_source"]) for get_film in films_list["hits"]["hits"]]
+
+    async def search_film(self, query):
+        try:
+            films_list = await self.elastic.search(
+                index="movies", query={"multi_match": {"query": query}}
+            )
+        except NotFoundError:
+            return None
+        logger.info("%s", films_list)
+        return [Film(**get_film["_source"]) for get_film in films_list["hits"]["hits"]]
+
     async def _get_film_from_elastic(self, film_id: UUID) -> Optional[Film]:
         try:
             doc = await self.elastic.get(index="movies", id=film_id)
