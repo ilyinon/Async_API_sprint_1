@@ -25,6 +25,10 @@ class EtlSettings(BaseSettings):
     REDIS_HOST: str
     REDIS_PORT: int
 
+    FILM_CACHE_EXPIRE_IN_SECONDS: int
+    GENRE_CACHE_EXPIRE_IN_SECONDS: int
+    PERSON_CACHE_EXPIRE_IN_SECONDS: int
+
     @property
     def elastic_dsn(self):
         return f"http://{self.ELASTIC_HOST}:{self.ELASTIC_PORT}"

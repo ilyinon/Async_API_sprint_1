@@ -5,14 +5,13 @@ from functools import lru_cache
 from typing import Optional
 from uuid import UUID
 
+from core.config import settings
 from db.elastic import get_elastic
 from db.redis import get_redis
 from elasticsearch import AsyncElasticsearch, NotFoundError
 from fastapi import Depends
 from models.film import Film, FilmDetail
 from redis.asyncio import Redis
-
-FILM_CACHE_EXPIRE_IN_SECONDS = 60 * 5
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +83,7 @@ class FilmService:
         await self.redis.set(
             cache_key,
             json.dumps([film.json() for film in films]),
-            FILM_CACHE_EXPIRE_IN_SECONDS,
+            settings.FILM_CACHE_EXPIRE_IN_SECONDS,
         )
 
         return films
@@ -160,7 +159,9 @@ class FilmService:
         return film
 
     async def _put_film_to_cache(self, film: Film):
-        await self.redis.set(str(film.id), film.json(), FILM_CACHE_EXPIRE_IN_SECONDS)
+        await self.redis.set(
+            str(film.id), film.json(), settings.FILM_CACHE_EXPIRE_IN_SECONDS
+        )
 
 
 @lru_cache()
