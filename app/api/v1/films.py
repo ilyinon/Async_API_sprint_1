@@ -1,22 +1,32 @@
 from http import HTTPStatus
-from typing import List, Optional
+from typing import Annotated, List, Literal, Optional
 from uuid import UUID
 
+from core import config
+from core.logger import logger
 from fastapi import APIRouter, Depends, HTTPException, Query
+from models.base import OrjsonBaseModel
 from pydantic import BaseModel
-from app.services.film import FilmService, get_film_service
-import logging
+from services.film import FilmService, get_film_service
 
 router = APIRouter()
-logger = logging.getLogger(__name__)
+
+
+class FilmResponse(OrjsonBaseModel):
+    uuid: UUID
+    title: str
+    imdb_rating: Optional[float]
+
+
+class PersonResponse(BaseModel):
+    id: Optional[str]
+    full_name: str
+
 
 class GenreResponse(BaseModel):
     id: Optional[str]
     name: str
 
-class PersonResponse(BaseModel):
-    id: Optional[str]
-    full_name: str
 
 class FilmDetailResponse(BaseModel):
     id: str
@@ -28,31 +38,62 @@ class FilmDetailResponse(BaseModel):
     writers: List[PersonResponse]
     directors: List[PersonResponse]
 
-class FilmResponse(BaseModel):
-    id: str
-    title: str
-    imdb_rating: Optional[float] = None
 
-class SearchResponse(BaseModel):
-    total: int
-    page: int
-    size: int
-    results: List[FilmResponse]
+@router.get(
+    "/",
+    response_model=list[FilmResponse],
+    summary="Список фильмов",
+    description="Получить список фильмов",
+)
+async def films_list(
+    sort: Annotated[
+        list[Literal["imdb_rating", "-imdb_rating"]],
+        Query(description="Sort by imdb_rating"),
+    ] = [],
+    genre: Annotated[Optional[UUID], Query(description="Filter by genre UUID")] = None,
+    film_service: FilmService = Depends(get_film_service),
+    page_size: Annotated[int, Query(description="Фильмов на страницу", ge=1)] = 50,
+    page_number: Annotated[int, Query(description="Номер страницы", ge=1)] = 1,
+) -> FilmResponse:
+    films = await film_service.get_list(sort, genre, page_size, page_number)
+    return [
+        FilmResponse(uuid=film.id, title=film.title, imdb_rating=film.imdb_rating)
+        for film in films
+    ]
 
-@router.get('/{film_id}', response_model=FilmDetailResponse)
-async def film_details(film_id: UUID, film_service: FilmService = Depends(get_film_service)) -> FilmDetailResponse:
-    # try:
-    film = await film_service.get_by_id(film_id)
-    
-    if not film:
-        raise HTTPException(status_code=HTTPStatus.NOT_FOUND, detail='Film not found')
 
-    # Convert film model to response model
-    genres = [GenreResponse(id=str(genre.id), name=genre.name) for genre in film.genres]
-    
-    actors = [PersonResponse(id=str(actor.id), full_name=actor.full_name) for actor in film.actors]
-    writers = [PersonResponse(id=str(writer.id), full_name=writer.full_name) for writer in film.writers]
-    directors = [PersonResponse(id=str(director.id), full_name=director.full_name) for director in film.directors]
+@router.get(
+    "/search",
+    response_model=list[FilmResponse],
+    summary="Поиск фильмов",
+    description="Получить список найденных фильмов",
+)
+async def search_film(
+    query: Annotated[str, Query(description="Запрос")],
+    film_service: FilmService = Depends(get_film_service),
+):
+    films = await film_service.search_film(query)
+    return [
+        FilmResponse(uuid=film.id, title=film.title, imdb_rating=film.imdb_rating)
+        for film in films
+    ]
+
+
+@router.get(
+    "/{film_id}",
+    response_model=FilmDetailResponse,
+    summary="Информация по фильму",
+    description="Полная информация по фильму",
+)
+async def genre_details(
+    film_id: UUID, film_service: FilmService = Depends(get_film_service)
+) -> FilmDetailResponse:
+    film_detail = await film_service.get_by_id(film_id)
+
+    if not film_detail:
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail=f"film with id {film_id} not found"
+        )
 
     return FilmDetailResponse(
         id=str(film_detail.id),
