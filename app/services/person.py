@@ -1,16 +1,16 @@
+import hashlib
+import json
 import logging
 from functools import lru_cache
 from typing import Optional
-from elasticsearch import AsyncElasticsearch, NotFoundError
-from fastapi import Depends
-from redis.asyncio import Redis
 from uuid import UUID
 
 from db.elastic import get_elastic
 from db.redis import get_redis
-from models.person import Person, PersonFilm, Film
-import hashlib
-import json
+from elasticsearch import AsyncElasticsearch, NotFoundError
+from fastapi import Depends
+from models.person import Film, Person, PersonFilm
+from redis.asyncio import Redis
 
 PERSON_CACHE_EXPIRE_IN_SECONDS = 60 * 5
 
@@ -25,50 +25,37 @@ class PersonService:
     def _generate_cache_key(self, query, page_number, page_size):
         key_str = f"persons:{query}:{page_number}:{page_size}"
         return hashlib.md5(key_str.encode()).hexdigest()
-    
+
     async def get_person_films(self, person_id: UUID):
         film_list = await self.elastic.search(
-            index='movies',
+            index="movies",
             query={
                 "bool": {
                     "should": [
                         {
                             "nested": {
                                 "path": "directors",
-                                "query": {
-                                    "term": {
-                                        "directors.id": person_id
-                                    }
-                                }
+                                "query": {"term": {"directors.id": person_id}},
                             },
                         },
                         {
                             "nested": {
                                 "path": "actors",
-                                "query": {
-                                    "term": {
-                                        "actors.id": person_id
-                                    }
-                                }
+                                "query": {"term": {"actors.id": person_id}},
                             },
                         },
                         {
                             "nested": {
                                 "path": "writers",
-                                "query": {
-                                    "term": {
-                                        "writers.id": person_id
-                                    }
-                                }
+                                "query": {"term": {"writers.id": person_id}},
                             }
-                        }
+                        },
                     ]
                 }
-            }
+            },
         )
         person_films = []
         for film in film_list["hits"]["hits"]:
-            logger.info("%s", film.get("_source"))
             person_film = PersonFilm(id=film.get("_source").get("id"), roles=[])
             for director in film.get("_source").get("directors"):
                 if director["id"] == person_id and "director" not in person_film.roles:
@@ -96,7 +83,7 @@ class PersonService:
         cached_data = await self.redis.get(cache_key)
         if cached_data:
             return [Person.parse_raw(person) for person in json.loads(cached_data)]
-        
+
         try:
             persons_list = await self.elastic.search(
                 index="persons", query={"match_all": {}}
@@ -104,51 +91,46 @@ class PersonService:
         except NotFoundError:
             return None
 
-        persons = [Person(**get_person["_source"]) for get_person in persons_list["hits"]["hits"]]
-        await self.redis.set(cache_key, json.dumps([person.json() for person in persons]), PERSON_CACHE_EXPIRE_IN_SECONDS)
+        persons = [
+            Person(**get_person["_source"])
+            for get_person in persons_list["hits"]["hits"]
+        ]
+        await self.redis.set(
+            cache_key,
+            json.dumps([person.json() for person in persons]),
+            PERSON_CACHE_EXPIRE_IN_SECONDS,
+        )
 
         return persons
-    
+
     async def get_person_film_list(self, person_id):
         try:
             film_list = await self.elastic.search(
-                index='movies',
+                index="movies",
                 query={
                     "bool": {
                         "should": [
                             {
                                 "nested": {
                                     "path": "directors",
-                                    "query": {
-                                        "term": {
-                                            "directors.id": person_id
-                                        }
-                                    }
+                                    "query": {"term": {"directors.id": person_id}},
                                 },
                             },
                             {
                                 "nested": {
                                     "path": "actors",
-                                    "query": {
-                                        "term": {
-                                            "actors.id": person_id
-                                        }
-                                    }
+                                    "query": {"term": {"actors.id": person_id}},
                                 },
                             },
                             {
                                 "nested": {
                                     "path": "writers",
-                                    "query": {
-                                        "term": {
-                                            "writers.id": person_id
-                                        }
-                                    }
+                                    "query": {"term": {"writers.id": person_id}},
                                 }
-                            }
+                            },
                         ]
                     }
-                }
+                },
             )
         except NotFoundError:
             return None
@@ -159,30 +141,37 @@ class PersonService:
         cached_data = await self.redis.get(cache_key)
         if cached_data:
             return [Person.parse_raw(person) for person in json.loads(cached_data)]
-        
+
         offset = (page_number - 1) * page_size
         try:
             persons_list = await self.elastic.search(
                 index="persons",
                 from_=offset,
                 size=page_size,
-                query={
-                    "match": {
-                        "full_name": query
-                    }
-                }
+                query={"match": {"full_name": query}},
             )
         except NotFoundError:
             return None
-        
-        persons = [Person(**get_person["_source"]) for get_person in persons_list["hits"]["hits"]]
-        await self.redis.set(cache_key, json.dumps([person.json() for person in persons]), PERSON_CACHE_EXPIRE_IN_SECONDS)
+        for get_person in persons_list["hits"]["hits"]:
+            get_person["_source"]["films"] = await self.get_person_films(
+                get_person["_source"]["id"]
+            )
+        persons = [
+            Person(**get_person["_source"])
+            for get_person in persons_list["hits"]["hits"]
+        ]
+        logger.debug(f"Search person {persons}")
+        await self.redis.set(
+            cache_key,
+            json.dumps([person.json() for person in persons]),
+            PERSON_CACHE_EXPIRE_IN_SECONDS,
+        )
 
         return persons
 
     async def _get_person_from_elastic(self, person_id: UUID) -> Optional[Person]:
         try:
-            doc = await self.elastic.get(index='persons', id=person_id)
+            doc = await self.elastic.get(index="persons", id=person_id)
         except NotFoundError:
             return None
         answer = {}
@@ -191,23 +180,26 @@ class PersonService:
 
         films = await self.get_person_films(answer["id"])
         answer["films"] = films
+        logger.debug(f"Retrieved person {answer} from elastic")
         return Person(**answer)
 
     async def _person_from_cache(self, person_id: UUID) -> Optional[Person]:
         data = await self.redis.get(str(person_id))
         if not data:
             return None
-        logger.info(f"Retrieved person {person_id} from cache")
+        logger.debug(f"Retrieved person {person_id} from cache")
         person = Person.parse_raw(data)
         return person
 
     async def _put_person_to_cache(self, person: Person):
-        await self.redis.set(str(person.id), person.json(), PERSON_CACHE_EXPIRE_IN_SECONDS)
+        await self.redis.set(
+            str(person.id), person.json(), PERSON_CACHE_EXPIRE_IN_SECONDS
+        )
 
 
 @lru_cache()
 def get_person_service(
-        redis: Redis = Depends(get_redis),
-        elastic: AsyncElasticsearch = Depends(get_elastic),
+    redis: Redis = Depends(get_redis),
+    elastic: AsyncElasticsearch = Depends(get_elastic),
 ) -> PersonService:
     return PersonService(redis, elastic)

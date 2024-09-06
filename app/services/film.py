@@ -1,3 +1,4 @@
+import hashlib
 import json
 import logging
 from functools import lru_cache
@@ -10,9 +11,8 @@ from elasticsearch import AsyncElasticsearch, NotFoundError
 from fastapi import Depends
 from models.film import Film, FilmDetail
 from redis.asyncio import Redis
-import hashlib
 
-FILM_CACHE_EXPIRE_IN_SECONDS = 60 * 5  # 5 минут
+FILM_CACHE_EXPIRE_IN_SECONDS = 60 * 5
 
 logger = logging.getLogger(__name__)
 
@@ -32,20 +32,21 @@ class FilmService:
 
         return film
 
-
     def _generate_cache_key(self, sort, genre, page_size, page_number):
         key_str = f"films:{sort}:{genre}:{page_size}:{page_number}"
         return hashlib.md5(key_str.encode()).hexdigest()
 
     async def get_list(self, sort, genre, page_size, page_number):
         cache_key = self._generate_cache_key(sort, genre, page_size, page_number)
-        
+
         cached_data = await self.redis.get(cache_key)
         if cached_data:
             return [Film.parse_raw(film) for film in json.loads(cached_data)]
-        
+
         query = {"match_all": {}}
-        logger.info("Search type %s", sort)
+        logger.debug(
+            f"Search type {sort}",
+        )
         sort_type = "asc"
         if sort and sort[0].startswith("-"):
             sort_type = "desc"
@@ -58,10 +59,12 @@ class FilmService:
                 [genre["_source"]["name"] for genre in genre_response["hits"]["hits"]]
             )
 
-            logger.info("Genre list %s", genre_names)
+            logger.debug(f"Genre list {genre_names}")
 
             if genre_names:
                 query = {"bool": {"must": [{"term": {"genres": genre_names}}]}}
+
+        offset = (page_number - 1) * page_size
 
         try:
             films_list = await self.elastic.search(
@@ -69,21 +72,23 @@ class FilmService:
                 body={
                     "query": query,
                     "sort": [{"imdb_rating": {"order": sort_type}}],
-                    "from": (page_size - 1) * page_number,
+                    "from": offset,
                     "size": page_size,
                 },
             )
-            logger.info("Found %s", films_list)
+            logger.debug(f"Retrieved films {films_list}")
         except NotFoundError:
             return None
 
         films = [Film(**get_film["_source"]) for get_film in films_list["hits"]["hits"]]
         await self.redis.set(
-            cache_key, json.dumps([film.json() for film in films]), FILM_CACHE_EXPIRE_IN_SECONDS
+            cache_key,
+            json.dumps([film.json() for film in films]),
+            FILM_CACHE_EXPIRE_IN_SECONDS,
         )
 
         return films
-    
+
     async def search_film(self, query):
         try:
             films_list = await self.elastic.search(
@@ -91,14 +96,14 @@ class FilmService:
             )
         except NotFoundError:
             return None
-        logger.info("%s", films_list)
+        logger.debug(f"Searched films {films_list}")
         return [Film(**get_film["_source"]) for get_film in films_list["hits"]["hits"]]
 
     async def _get_film_from_elastic(self, film_id: UUID) -> Optional[FilmDetail]:
         try:
             doc = await self.elastic.get(index="movies", id=film_id)
             genres = doc["_source"].get("genres", [])
-            logger.info("genres list: %s", genres)
+            logger.debug(f"genres list: {genres}")
             genres_list = []
             for genre in genres:
                 response = await self.elastic.search(
@@ -143,14 +148,14 @@ class FilmService:
                 if isinstance(director, dict)
             ],
         }
-        logger.info("Film details | %s", film_data)
+        logger.debug("Got film details {film_data}")
         return FilmDetail(**film_data)
 
     async def _film_from_cache(self, film_id: UUID) -> Optional[Film]:
         data = await self.redis.get(str(film_id))
         if not data:
             return None
-        logger.info(f"Retrieved film {film_id} from cache")
+        logger.debug(f"Retrieved film {film_id} from cache")
         film = Film.parse_raw(data)
         return film
 
