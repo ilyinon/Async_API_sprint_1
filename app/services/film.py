@@ -1,3 +1,4 @@
+import json
 import logging
 from functools import lru_cache
 from typing import Optional
@@ -9,6 +10,7 @@ from elasticsearch import AsyncElasticsearch, NotFoundError
 from fastapi import Depends
 from models.film import Film, FilmDetail
 from redis.asyncio import Redis
+import hashlib
 
 FILM_CACHE_EXPIRE_IN_SECONDS = 60 * 5  # 5 минут
 
@@ -21,21 +23,27 @@ class FilmService:
         self.elastic = elastic
 
     async def get_by_id(self, film_id: UUID) -> Optional[FilmDetail]:
-        film = await self._get_film_from_elastic(film_id)
-        # Пытаемся получить данные из кеша, потому что оно работает быстрее
-        # film = await self._film_from_cache(film_id)
-        # if not film:
-        #     # Если фильма нет в кеше, то ищем его в Elasticsearch
-        #     film = await self._get_film_from_elastic(film_id)
-        #     if not film:
-        #         # Если он отсутствует в Elasticsearch, значит, фильма вообще нет в базе
-        #         return None
-        #     # Сохраняем фильм в кеш
-        #     await self._put_film_to_cache(film)
+        film = await self._film_from_cache(film_id)
+        if not film:
+            film = await self._get_film_from_elastic(film_id)
+            if not film:
+                return None
+            await self._put_film_to_cache(film)
 
         return film
 
+
+    def _generate_cache_key(self, sort, genre, page_size, page_number):
+        key_str = f"films:{sort}:{genre}:{page_size}:{page_number}"
+        return hashlib.md5(key_str.encode()).hexdigest()
+
     async def get_list(self, sort, genre, page_size, page_number):
+        cache_key = self._generate_cache_key(sort, genre, page_size, page_number)
+        
+        cached_data = await self.redis.get(cache_key)
+        if cached_data:
+            return [Film.parse_raw(film) for film in json.loads(cached_data)]
+        
         query = {"match_all": {}}
         logger.info("Search type %s", sort)
         sort_type = "asc"
@@ -68,8 +76,14 @@ class FilmService:
             logger.info("Found %s", films_list)
         except NotFoundError:
             return None
-        return [Film(**get_film["_source"]) for get_film in films_list["hits"]["hits"]]
 
+        films = [Film(**get_film["_source"]) for get_film in films_list["hits"]["hits"]]
+        await self.redis.set(
+            cache_key, json.dumps([film.json() for film in films]), FILM_CACHE_EXPIRE_IN_SECONDS
+        )
+
+        return films
+    
     async def search_film(self, query):
         try:
             films_list = await self.elastic.search(
@@ -136,7 +150,7 @@ class FilmService:
         data = await self.redis.get(str(film_id))
         if not data:
             return None
-
+        logger.info(f"Retrieved film {film_id} from cache")
         film = Film.parse_raw(data)
         return film
 
