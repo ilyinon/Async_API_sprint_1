@@ -3,24 +3,35 @@ from logging import config as logging_config
 
 from core.logger import LOGGING
 from pydantic import AnyUrl, RedisDsn
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+DOTENV = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 # Применяем настройки логирования
 logging_config.dictConfig(LOGGING)
 
-# Название проекта. Используется в Swagger-документации
-PROJECT_NAME = os.getenv("PROJECT_NAME", "movies")
 
-# Настройки Redis
-REDIS_HOST = os.getenv("REDIS_HOST", "127.0.0.1")
-REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
-
-# Настройки Elasticsearch
-ELASTIC_HOST = os.getenv("ELASTIC_HOST", "127.0.0.1")
-ELASTIC_PORT = int(os.getenv("ELASTIC_PORT", 9200))
-
-
-elastic_dsn: AnyUrl = f"http://{ELASTIC_HOST}:{ELASTIC_PORT}"
-redis_dsn: RedisDsn = f"redis://{REDIS_HOST}:{REDIS_PORT}"
-
-# Корень проекта
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+class EtlSettings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=DOTENV)
+
+    PROJECT_NAME: str
+
+    ELASTIC_HOST: str
+    ELASTIC_PORT: int
+
+    REDIS_HOST: str
+    REDIS_PORT: int
+
+    @property
+    def elastic_dsn(self):
+        return f"http://{self.ELASTIC_HOST}:{self.ELASTIC_PORT}"
+
+    @property
+    def redis_dsn(self):
+        return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}"
+
+
+settings = EtlSettings()
