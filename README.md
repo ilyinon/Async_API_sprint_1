@@ -1,7 +1,9 @@
+```bash
 https://github.com/ilyinon/Async_API_sprint_1
+```
 
 
-0. При настройке интеграции с остальными компонентами нужно корреткно заполнить .env, для дев проекта можно скопировать из .env_example
+0. При настройке интеграции с остальными компонентами нужно корректно заполнить .env, для дев проекта можно скопировать из .env_example
 ```bash
 cp .env_example .env
 ```
@@ -13,7 +15,10 @@ docker-comose-up -d --build
 ```
 
 2. Для отделения логически компонентов, выгрузка данных persons и genres была добавлена в ETL.
-Реализовано в репозитории: https://github.com/ilyinon/new_admin_panel_sprint_3
+Реализовано в репозитории:
+```bash
+https://github.com/ilyinon/new_admin_panel_sprint_3
+```
 
 
 3. Для добавление в elastic данных нужно выполнить следующие шаги:
