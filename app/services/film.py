@@ -39,18 +39,21 @@ class FilmService:
         query = {"match_all": {}}
         logger.info("Search type %s", sort)
         sort_type = "asc"
-        if sort[0].startswith("-"):
+        if sort and sort[0].startswith("-"):
             sort_type = "desc"
-        genre_response = await self.elastic.search(
-            index="genres", query={"multi_match": {"query": genre}}
-        )
-        genre_names = " ".join(
-            [genre["_source"]["name"] for genre in genre_response["hits"]["hits"]]
-        )
 
-        logger.info("Genre list %s", genre_names)
+        if genre:
+            genre_response = await self.elastic.search(
+                index="genres", query={"multi_match": {"query": genre}}
+            )
+            genre_names = " ".join(
+                [genre["_source"]["name"] for genre in genre_response["hits"]["hits"]]
+            )
 
-        query = {"match": {"genres": genre_names}}
+            logger.info("Genre list %s", genre_names)
+
+            if genre_names:
+                query = {"bool": {"must": [{"term": {"genres": genre_names}}]}}
 
         try:
             films_list = await self.elastic.search(
