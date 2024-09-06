@@ -1,9 +1,6 @@
-from typing import Optional
-from uuid import UUID
-from base import OrjsonBaseModel
+from .base import OrjsonBaseModel
 
 
 class Genre(OrjsonBaseModel):
-    id: UUID
+    id: str
     name: str
-    description: Optional[str] = None

@@ -1,9 +1,6 @@
-from typing import Optional
-from uuid import UUID
-from base import OrjsonBaseModel
+from .base import OrjsonBaseModel
 
 
 class Person(OrjsonBaseModel):
-    id: UUID
+    id: str
     full_name: str
-    role: Optional[str] = None
