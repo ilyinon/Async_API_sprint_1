@@ -1,15 +1,24 @@
-from typing import Optional, List
-from .genre import Genre
-from .person import Person
-from .base import OrjsonBaseModel
+from uuid import UUID
+from typing import Optional
+
+from models.base import OrjsonBaseModel
+from models.genre import Genre
 
 
 class Film(OrjsonBaseModel):
-    id: str
+    id: UUID
     title: str
-    description: Optional[str] = None
-    imdb_rating: Optional[float] = None
-    genres: List[Genre]
-    actors: List[Person]
-    directors: List[Person]
-    writers: List[Person]
+    imdb_rating: Optional[float]
+
+
+class FilmPerson(OrjsonBaseModel):
+    id: UUID
+    full_name: str
+
+
+class FilmDetail(Film):
+    description: str
+    genres: list[Genre]
+    actors: list[FilmPerson]
+    writers: list[FilmPerson]
+    directors: list[FilmPerson]

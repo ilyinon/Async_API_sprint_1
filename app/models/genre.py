@@ -1,6 +1,8 @@
-from .base import OrjsonBaseModel
+from uuid import UUID
+
+from models.base import OrjsonBaseModel
 
 
 class Genre(OrjsonBaseModel):
-    id: str
+    id: UUID
     name: str
