@@ -1,18 +1,20 @@
 import logging
 from functools import lru_cache
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from uuid import UUID
-
-from db.elastic import get_elastic
-from db.redis import get_redis
+from app.db.elastic import get_elastic
+from app.db.redis import get_redis
 from elasticsearch import AsyncElasticsearch, NotFoundError
 from fastapi import Depends
-from models.film import Film
+from app.models.film import Film
+from app.models.genre import Genre
+from app.models.person import Person
 from redis.asyncio import Redis
 
 FILM_CACHE_EXPIRE_IN_SECONDS = 60 * 5  # 5 minutes
 
 logger = logging.getLogger(__name__)
+
 
 class FilmService:
     def __init__(self, redis: Redis, elastic: AsyncElasticsearch):
@@ -35,80 +37,100 @@ class FilmService:
             await self._put_film_to_cache(film)
 
         return film
-    
+
+    async def get_films(
+        self,
+        sort: str = "-imdb_rating",
+        genre: Optional[UUID] = None,
+        page: int = 1,
+        size: int = 10,
+    ) -> Tuple[int, List[Film]]:
+        """
+        Retrieve a list of films with pagination, sorting, and optional genre filtering.
+        """
+        # Create the search query
+        search_query = {
+            "query": {"bool": {"must": [], "filter": []}},
+            "sort": [{sort: {"order": "desc" if sort.startswith("-") else "asc"}}],
+            "from": (page - 1) * size,
+            "size": size,
+        }
+
+        # Apply genre filter if provided
+        if genre:
+            search_query["query"]["bool"]["filter"].append(
+                {"term": {"genres.id": str(genre.id)}}
+            )
+
+        # Perform the search
+        response = await self.elastic.search(index="movies", body=search_query)
+        total = response["hits"]["total"]["value"]
+        hits = response["hits"]["hits"]
+        return total, [Film(**hit["_source"]) for hit in hits]
+
     async def search_films(self, query: str, page: int = 1, size: int = 10):
         search_query = {
             "query": {
                 "multi_match": {
                     "query": query,
-                    "fields": ["title^3", "description", "actors.name", "genres.name"]
+                    "fields": ["title^3", "description", "actors.name", "genres.name"],
                 }
             },
             "from": (page - 1) * size,
-            "size": size
+            "size": size,
         }
 
-        response = await self.elastic.search(index='movies', body=search_query)
-        total = response['hits']['total']['value']
-        hits = response['hits']['hits']
-        return total, [Film(**hit['_source']) for hit in hits]
+        response = await self.elastic.search(index="movies", body=search_query)
+        total = response["hits"]["total"]["value"]
+        hits = response["hits"]["hits"]
+        return total, [Film(**hit["_source"]) for hit in hits]
 
     async def _get_film_from_elastic(self, film_id: str) -> Optional[Film]:
-        try:
+        # try:
             doc = await self.elastic.get(index="movies", id=film_id)
             logger.info(f"Elasticsearch response for film {film_id}: {doc}")
 
-            genres = doc["_source"].get("genres", [])
-            if isinstance(genres, str):
-                genres = []
+            genres = []
+            # actors = []
+            # directors = []
+            # writers = []
 
-            actors = doc["_source"].get("actors", [])
-            if isinstance(actors, str):
-                actors = []
+            # Process genres (check for dict or string)
+            for genre in doc["_source"].get("genres", []):
+                if isinstance(genre, dict):
+                    genre_id = genre.get("id")
+                    genres.append(
+                        Genre(
+                            id=UUID(genre_id) if genre_id else None,
+                            name=genre.get("name"),
+                        )
+                    )
+                elif isinstance(genre, str):
+                    genres.append(Genre(id="", name=genre))
 
-            writers = doc["_source"].get("writers", [])
-            if isinstance(writers, str):
-                writers = []
-
-            directors = doc["_source"].get("directors", [])
-            if isinstance(directors, str):
-                directors = []
+            actors = [Person(id="", full_name=name) for name in doc["_source"].get("actors_names", [])]
+            directors = [Person(id="", full_name=name) for name in doc["_source"].get("directors_names", [])]
+            writers = [Person(id="", full_name=name) for name in doc["_source"].get("writers_names", [])]
 
             film_data = {
-                "id": doc["_source"].get("id"),
+                "id": UUID(doc["_source"].get("id")),
                 "title": doc["_source"].get("title"),
                 "imdb_rating": doc["_source"].get("imdb_rating"),
                 "description": doc["_source"].get("description", ""),
-                "genres": [
-                    {"id": genre.get("id"), "name": genre.get("name")}
-                    for genre in genres
-                    if isinstance(genre, dict)
-                ],
-                "actors": [
-                    {"id": actor.get("id"), "full_name": actor.get("name")}
-                    for actor in actors
-                    if isinstance(actor, dict)
-                ],
-                "writers": [
-                    {"id": writer.get("id"), "full_name": writer.get("name")}
-                    for writer in writers
-                    if isinstance(writer, dict)
-                ],
-                "directors": [
-                    {"id": director.get("id"), "full_name": director.get("name")}
-                    for director in directors
-                    if isinstance(director, dict)
-                ]
+                "genres": genres,
+                "actors": actors,
+                "directors": directors,
+                "writers": writers,
             }
 
             return Film(**film_data)
 
-        except NotFoundError:
-            logger.error(f"Film with ID {film_id} not found in Elasticsearch")
-            return None
-        except Exception as e:
-            logger.error(f"Elasticsearch fetch error for film {film_id}: {str(e)}")
-            return None
+        # except NotFoundError:
+        #     logger.error(f"Film with ID {film_id} not found in Elasticsearch")
+        #     return None
+        # except Exception as e:
+        #     logger.error(f"Elasticsearch fetch error for film {film_id}: {str(e)}")
+        #     return None
 
     async def _film_from_cache(self, film_id: str) -> Optional[Film]:
         # Attempt to retrieve the film data from the cache
@@ -123,6 +145,7 @@ class FilmService:
     async def _put_film_to_cache(self, film: Film):
         # Save the film data to the cache with an expiration time
         await self.redis.set(str(film.id), film.json(), ex=FILM_CACHE_EXPIRE_IN_SECONDS)
+
 
 @lru_cache()
 def get_film_service(

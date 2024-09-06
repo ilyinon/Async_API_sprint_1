@@ -1,7 +1,7 @@
 import os
 from logging import config as logging_config
 
-from core.logger import LOGGING
+from .logger import LOGGING
 from pydantic import AnyUrl, RedisDsn
 
 # Применяем настройки логирования
