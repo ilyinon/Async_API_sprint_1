@@ -1,14 +1,15 @@
 import logging
 from functools import lru_cache
 from typing import Optional
-from elasticsearch import AsyncElasticsearch, NotFoundError
-from fastapi import Depends
-from redis.asyncio import Redis
 from uuid import UUID
 
 from db.elastic import get_elastic
 from db.redis import get_redis
-from models.person import Person, PersonFilm, Film
+from elasticsearch import AsyncElasticsearch, NotFoundError
+from fastapi import Depends
+from models.film import Film
+from models.person import Person, PersonFilm
+from redis.asyncio import Redis
 
 PERSON_CACHE_EXPIRE_IN_SECONDS = 60 * 5
 
@@ -22,43 +23,31 @@ class PersonService:
 
     async def get_person_films(self, person_id: UUID):
         film_list = await self.elastic.search(
-            index='movies',
+            index="movies",
             query={
                 "bool": {
                     "should": [
                         {
                             "nested": {
                                 "path": "directors",
-                                "query": {
-                                    "term": {
-                                        "directors.id": person_id
-                                    }
-                                }
+                                "query": {"term": {"directors.id": person_id}},
                             },
                         },
                         {
                             "nested": {
                                 "path": "actors",
-                                "query": {
-                                    "term": {
-                                        "actors.id": person_id
-                                    }
-                                }
+                                "query": {"term": {"actors.id": person_id}},
                             },
                         },
                         {
                             "nested": {
                                 "path": "writers",
-                                "query": {
-                                    "term": {
-                                        "writers.id": person_id
-                                    }
-                                }
+                                "query": {"term": {"writers.id": person_id}},
                             }
-                        }
+                        },
                     ]
                 }
-            }
+            },
         )
         person_films = []
         for film in film_list["hits"]["hits"]:
@@ -94,49 +83,42 @@ class PersonService:
             return None
         for get_person in persons_list["hits"]["hits"]:
             logger.info(get_person["_source"])
-            get_person["_source"]["films"] = await self.get_person_films(get_person["_source"]["id"])
-        return [Person(**get_person["_source"]) for get_person in persons_list["hits"]["hits"]]
+            get_person["_source"]["films"] = await self.get_person_films(
+                get_person["_source"]["id"]
+            )
+        return [
+            Person(**get_person["_source"])
+            for get_person in persons_list["hits"]["hits"]
+        ]
 
     async def get_person_film_list(self, person_id):
         try:
             film_list = await self.elastic.search(
-                index='movies',
+                index="movies",
                 query={
                     "bool": {
                         "should": [
                             {
                                 "nested": {
                                     "path": "directors",
-                                    "query": {
-                                        "term": {
-                                            "directors.id": person_id
-                                        }
-                                    }
+                                    "query": {"term": {"directors.id": person_id}},
                                 },
                             },
                             {
                                 "nested": {
                                     "path": "actors",
-                                    "query": {
-                                        "term": {
-                                            "actors.id": person_id
-                                        }
-                                    }
+                                    "query": {"term": {"actors.id": person_id}},
                                 },
                             },
                             {
                                 "nested": {
                                     "path": "writers",
-                                    "query": {
-                                        "term": {
-                                            "writers.id": person_id
-                                        }
-                                    }
+                                    "query": {"term": {"writers.id": person_id}},
                                 }
-                            }
+                            },
                         ]
                     }
-                }
+                },
             )
         except NotFoundError:
             return None
@@ -151,22 +133,23 @@ class PersonService:
                 index="persons",
                 from_=offset,
                 size=page_size,
-                query={
-                    "match": {
-                        "full_name": query
-                    }
-                }
+                query={"match": {"full_name": query}},
             )
         except NotFoundError:
             return None
         for get_person in persons_list["hits"]["hits"]:
             logger.info(get_person["_source"])
-            get_person["_source"]["films"] = await self.get_person_films(get_person["_source"]["id"])
-        return [Person(**get_person["_source"]) for get_person in persons_list["hits"]["hits"]]
+            get_person["_source"]["films"] = await self.get_person_films(
+                get_person["_source"]["id"]
+            )
+        return [
+            Person(**get_person["_source"])
+            for get_person in persons_list["hits"]["hits"]
+        ]
 
     async def _get_person_from_elastic(self, person_id: UUID) -> Optional[Person]:
         try:
-            doc = await self.elastic.get(index='persons', id=person_id)
+            doc = await self.elastic.get(index="persons", id=person_id)
         except NotFoundError:
             return None
         answer = {}
@@ -185,12 +168,14 @@ class PersonService:
         return person
 
     async def _put_person_to_cache(self, person: Person):
-        await self.redis.set(str(person.id), person.json(), PERSON_CACHE_EXPIRE_IN_SECONDS)
+        await self.redis.set(
+            str(person.id), person.json(), PERSON_CACHE_EXPIRE_IN_SECONDS
+        )
 
 
 @lru_cache()
 def get_person_service(
-        redis: Redis = Depends(get_redis),
-        elastic: AsyncElasticsearch = Depends(get_elastic),
+    redis: Redis = Depends(get_redis),
+    elastic: AsyncElasticsearch = Depends(get_elastic),
 ) -> PersonService:
     return PersonService(redis, elastic)
