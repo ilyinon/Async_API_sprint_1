@@ -1,3 +1,5 @@
+import hashlib
+import json
 import logging
 from functools import lru_cache
 from typing import Optional
@@ -20,6 +22,10 @@ class PersonService:
     def __init__(self, redis: Redis, elastic: AsyncElasticsearch):
         self.redis = redis
         self.elastic = elastic
+
+    def _generate_cache_key(self, query, page_number, page_size):
+        key_str = f"persons:{query}:{page_number}:{page_size}"
+        return hashlib.md5(key_str.encode()).hexdigest()
 
     async def get_person_films(self, person_id: UUID):
         film_list = await self.elastic.search(
@@ -51,7 +57,6 @@ class PersonService:
         )
         person_films = []
         for film in film_list["hits"]["hits"]:
-            logger.info("%s", film.get("_source"))
             person_film = PersonFilm(id=film.get("_source").get("id"), roles=[])
             for director in film.get("_source").get("directors"):
                 if director["id"] == person_id and "director" not in person_film.roles:
@@ -75,21 +80,29 @@ class PersonService:
         return person
 
     async def get_list(self):
+        cache_key = "persons_list"
+        cached_data = await self.redis.get(cache_key)
+        if cached_data:
+            return [Person.parse_raw(person) for person in json.loads(cached_data)]
+
         try:
             persons_list = await self.elastic.search(
                 index="persons", query={"match_all": {}}
             )
         except NotFoundError:
             return None
-        for get_person in persons_list["hits"]["hits"]:
-            logger.info(get_person["_source"])
-            get_person["_source"]["films"] = await self.get_person_films(
-                get_person["_source"]["id"]
-            )
-        return [
+
+        persons = [
             Person(**get_person["_source"])
             for get_person in persons_list["hits"]["hits"]
         ]
+        await self.redis.set(
+            cache_key,
+            json.dumps([person.json() for person in persons]),
+            PERSON_CACHE_EXPIRE_IN_SECONDS,
+        )
+
+        return persons
 
     async def get_person_film_list(self, person_id):
         try:
@@ -125,9 +138,12 @@ class PersonService:
         return [Film(**film["_source"]) for film in film_list["hits"]["hits"]]
 
     async def get_search_list(self, query, page_number, page_size):
-        logger.info(f"searching for {query}")
+        cache_key = self._generate_cache_key(query, page_number, page_size)
+        cached_data = await self.redis.get(cache_key)
+        if cached_data:
+            return [Person.parse_raw(person) for person in json.loads(cached_data)]
+
         offset = (page_number - 1) * page_size
-        logger.info(f"offset = {offset}")
         try:
             persons_list = await self.elastic.search(
                 index="persons",
@@ -138,14 +154,21 @@ class PersonService:
         except NotFoundError:
             return None
         for get_person in persons_list["hits"]["hits"]:
-            logger.info(get_person["_source"])
             get_person["_source"]["films"] = await self.get_person_films(
                 get_person["_source"]["id"]
             )
-        return [
+        persons = [
             Person(**get_person["_source"])
             for get_person in persons_list["hits"]["hits"]
         ]
+        logger.debug(f"Search person {persons}")
+        await self.redis.set(
+            cache_key,
+            json.dumps([person.json() for person in persons]),
+            PERSON_CACHE_EXPIRE_IN_SECONDS,
+        )
+
+        return persons
 
     async def _get_person_from_elastic(self, person_id: UUID) -> Optional[Person]:
         try:
@@ -158,12 +181,14 @@ class PersonService:
 
         films = await self.get_person_films(answer["id"])
         answer["films"] = films
+        logger.debug(f"Retrieved person {answer} from elastic")
         return Person(**answer)
 
     async def _person_from_cache(self, person_id: UUID) -> Optional[Person]:
         data = await self.redis.get(str(person_id))
         if not data:
             return None
+        logger.debug(f"Retrieved person {person_id} from cache")
         person = Person.parse_raw(data)
         return person
 

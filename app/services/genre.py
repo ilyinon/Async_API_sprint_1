@@ -1,3 +1,4 @@
+import json
 import logging
 from functools import lru_cache
 from typing import Optional
@@ -20,24 +21,38 @@ class GenreService:
         self.redis = redis
         self.elastic = elastic
 
+    def _generate_cache_key(self, genre_id):
+        return f"genre:{genre_id}"
+
     async def get_by_id(self, genre_id: UUID) -> Optional[Genre]:
-        genre = await self._genre_from_cache(genre_id)
-        if not genre:
-            genre = await self._get_genre_from_elastic(genre_id)
-            if not genre:
-                return None
-            await self._put_genre_to_cache(genre)
+        cache_key = self._generate_cache_key(genre_id)
+        cached_data = await self.redis.get(cache_key)
+        if cached_data:
+            return Genre.parse_raw(cached_data)
+        
+        genre = await self._get_genre_from_elastic(genre_id)
+        if genre:
+            await self.redis.set(cache_key, genre.json(), GENRE_CACHE_EXPIRE_IN_SECONDS)
+        
         return genre
 
     async def get_list(self):
+        cache_key = "genres_list"
+        cached_data = await self.redis.get(cache_key)
+        if cached_data:
+            return [Genre.parse_raw(genre) for genre in json.loads(cached_data)]
+        
         try:
             genres_list = await self.elastic.search(
                 index="genres", query={"match_all": {}}
             )
         except NotFoundError:
             return None
-        logger.info("%s", genres_list)
-        return [Genre(**get_genre["_source"]) for get_genre in genres_list["hits"]["hits"]]
+        
+        genres = [Genre(**get_genre["_source"]) for get_genre in genres_list["hits"]["hits"]]
+        await self.redis.set(cache_key, json.dumps([genre.json() for genre in genres]), GENRE_CACHE_EXPIRE_IN_SECONDS)
+
+        return genres
 
     async def _get_genre_from_elastic(self, genre_id: UUID) -> Optional[Genre]:
         try:
@@ -53,6 +68,7 @@ class GenreService:
         data = await self.redis.get(str(genre_id))
         if not data:
             return None
+        logger.info(f"Retrieved genre {genre_id} from cache")
         genre = Genre.parse_raw(data)
         return genre
 

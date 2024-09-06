@@ -5,7 +5,7 @@ from models.base import OrjsonBaseModel
 
 
 class PersonFilm(OrjsonBaseModel):
-    id: UUID  # ID of film
+    id: UUID
     roles: list[str]
 
 
