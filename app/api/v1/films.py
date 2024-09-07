@@ -71,8 +71,10 @@ async def films_list(
 async def search_film(
     query: Annotated[str, Query(description="Запрос")],
     film_service: FilmService = Depends(get_film_service),
+    page_size: Annotated[int, Query(description="Фильмов на страницу", ge=1)] = 50,
+    page_number: Annotated[int, Query(description="Номер страницы", ge=1)] = 1,
 ):
-    films = await film_service.search_film(query)
+    films = await film_service.search_film(query, page_size, page_number)
     return [
         FilmResponse(uuid=film.id, title=film.title, imdb_rating=film.imdb_rating)
         for film in films
