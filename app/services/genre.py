@@ -37,15 +37,19 @@ class GenreService:
 
         return genre
 
-    async def get_list(self):
-        cache_key = "genres_list"
+    async def get_list(self, page_number, page_size):
+        cache_key = f"genres_list:{page_size}:{page_number}"
         cached_data = await self.redis.get(cache_key)
+        offset = (page_number - 1) * page_size
         if cached_data:
             return [Genre.parse_raw(genre) for genre in json.loads(cached_data)]
 
         try:
             genres_list = await self.elastic.search(
-                index="genres", query={"match_all": {}}
+                index="genres",
+                from_=offset,
+                size=page_size,
+                query={"match_all": {}}
             )
         except NotFoundError:
             return None

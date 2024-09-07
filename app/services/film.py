@@ -88,10 +88,14 @@ class FilmService:
 
         return films
 
-    async def search_film(self, query):
+    async def search_film(self, query, page_size, page_number):
+        offset = (page_number - 1) * page_size
         try:
             films_list = await self.elastic.search(
-                index="movies", query={"multi_match": {"query": query}}
+                index="movies",
+                from_=offset,
+                size=page_size,
+                query={"multi_match": {"query": query}}
             )
         except NotFoundError:
             return None
