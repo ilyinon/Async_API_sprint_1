@@ -82,7 +82,7 @@ class FilmService:
         await self.redis.set(
             cache_key,
             json.dumps([film.json() for film in films]),
-            settings.FILM_CACHE_EXPIRE_IN_SECONDS,
+            settings.film_cache_expire_in_seconds,
         )
 
         return films
@@ -94,7 +94,7 @@ class FilmService:
                 index="movies",
                 from_=offset,
                 size=page_size,
-                query={"multi_match": {"query": query}}
+                query={"multi_match": {"query": query}},
             )
         except NotFoundError:
             return None
@@ -163,7 +163,7 @@ class FilmService:
 
     async def _put_film_to_cache(self, film: Film):
         await self.redis.set(
-            str(film.id), film.json(), settings.FILM_CACHE_EXPIRE_IN_SECONDS
+            str(film.id), film.json(), settings.film_cache_expire_in_seconds
         )
 
 

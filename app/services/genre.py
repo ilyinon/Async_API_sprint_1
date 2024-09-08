@@ -31,7 +31,7 @@ class GenreService:
         genre = await self._get_genre_from_elastic(genre_id)
         if genre:
             await self.redis.set(
-                cache_key, genre.json(), settings.GENRE_CACHE_EXPIRE_IN_SECONDS
+                cache_key, genre.json(), settings.genre_cache_expire_in_seconds
             )
 
         return genre
@@ -45,10 +45,7 @@ class GenreService:
 
         try:
             genres_list = await self.elastic.search(
-                index="genres",
-                from_=offset,
-                size=page_size,
-                query={"match_all": {}}
+                index="genres", from_=offset, size=page_size, query={"match_all": {}}
             )
         except NotFoundError:
             return None
@@ -59,7 +56,7 @@ class GenreService:
         await self.redis.set(
             cache_key,
             json.dumps([genre.json() for genre in genres]),
-            settings.GENRE_CACHE_EXPIRE_IN_SECONDS,
+            settings.genre_cache_expire_in_seconds,
         )
 
         return genres
@@ -84,7 +81,7 @@ class GenreService:
 
     async def _put_genre_to_cache(self, genre: Genre):
         await self.redis.set(
-            str(genre.id), genre.json(), settings.GENRE_CACHE_EXPIRE_IN_SECONDS
+            str(genre.id), genre.json(), settings.genre_cache_expire_in_seconds
         )
 
 
