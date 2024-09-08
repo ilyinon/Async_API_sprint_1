@@ -98,7 +98,7 @@ class PersonService:
         await self.redis.set(
             cache_key,
             json.dumps([person.json() for person in persons]),
-            settings.PERSON_CACHE_EXPIRE_IN_SECONDS,
+            settings.person_cache_expire_in_seconds,
         )
 
         return persons
@@ -164,7 +164,7 @@ class PersonService:
         await self.redis.set(
             cache_key,
             json.dumps([person.json() for person in persons]),
-            settings.PERSON_CACHE_EXPIRE_IN_SECONDS,
+            settings.person_cache_expire_in_seconds,
         )
 
         return persons
@@ -193,7 +193,7 @@ class PersonService:
 
     async def _put_person_to_cache(self, person: Person):
         await self.redis.set(
-            str(person.id), person.json(), settings.PERSON_CACHE_EXPIRE_IN_SECONDS
+            str(person.id), person.json(), settings.person_cache_expire_in_seconds
         )
 
 
