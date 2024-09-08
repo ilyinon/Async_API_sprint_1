@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import Annotated, List, Literal, Optional
+from typing import Annotated, List, Literal
 from uuid import UUID
 
 from core import config
@@ -15,24 +15,24 @@ router = APIRouter()
 class FilmResponse(OrjsonBaseModel):
     uuid: UUID
     title: str
-    imdb_rating: Optional[float]
+    imdb_rating: float | None
 
 
 class PersonResponse(BaseModel):
-    id: Optional[str]
+    id: str | None
     full_name: str
 
 
 class GenreResponse(BaseModel):
-    id: Optional[str]
+    id: str | None
     name: str
 
 
 class FilmDetailResponse(BaseModel):
     id: str
     title: str
-    imdb_rating: Optional[float] = None
-    description: Optional[str] = None
+    imdb_rating: float | None = None
+    description: str | None = None
     genres: List[GenreResponse]
     actors: List[PersonResponse]
     writers: List[PersonResponse]
@@ -50,11 +50,11 @@ async def films_list(
         list[Literal["imdb_rating", "-imdb_rating"]],
         Query(description="Sort by imdb_rating"),
     ] = [],
-    genre: Annotated[Optional[UUID], Query(description="Filter by genre UUID")] = None,
+    genre: Annotated[UUID | None, Query(description="Filter by genre UUID")] = None,
     film_service: FilmService = Depends(get_film_service),
     page_size: Annotated[int, Query(description="Фильмов на страницу", ge=1)] = 50,
     page_number: Annotated[int, Query(description="Номер страницы", ge=1)] = 1,
-) -> FilmResponse:
+) -> List[FilmResponse]:
     films = await film_service.get_list(sort, genre, page_size, page_number)
     return [
         FilmResponse(uuid=film.id, title=film.title, imdb_rating=film.imdb_rating)

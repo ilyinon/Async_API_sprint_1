@@ -1,7 +1,6 @@
 import json
 import logging
 from functools import lru_cache
-from typing import Optional
 from uuid import UUID
 
 from core.config import settings
@@ -23,7 +22,7 @@ class GenreService:
     def _generate_cache_key(self, genre_id):
         return f"genre:{genre_id}"
 
-    async def get_by_id(self, genre_id: UUID) -> Optional[Genre]:
+    async def get_by_id(self, genre_id: UUID) -> Genre | None:
         cache_key = self._generate_cache_key(genre_id)
         cached_data = await self.redis.get(cache_key)
         if cached_data:
@@ -65,7 +64,7 @@ class GenreService:
 
         return genres
 
-    async def _get_genre_from_elastic(self, genre_id: UUID) -> Optional[Genre]:
+    async def _get_genre_from_elastic(self, genre_id: UUID) -> Genre | None:
         try:
             doc = await self.elastic.get(index="genres", id=genre_id)
         except NotFoundError:
@@ -75,7 +74,7 @@ class GenreService:
         answer["name"] = doc["_source"]["name"]
         return Genre(**answer)
 
-    async def _genre_from_cache(self, genre_id: UUID) -> Optional[Genre]:
+    async def _genre_from_cache(self, genre_id: UUID) -> Genre | None:
         data = await self.redis.get(str(genre_id))
         if not data:
             return None

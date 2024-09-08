@@ -1,5 +1,5 @@
 from http import HTTPStatus
-from typing import Annotated, Optional
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -17,7 +17,7 @@ class PersonFilm(OrjsonBaseModel):
 class Film(OrjsonBaseModel):
     uuid: UUID
     title: str
-    imdb_rating: Optional[float]
+    imdb_rating: float | None
 
 
 class Person(OrjsonBaseModel):

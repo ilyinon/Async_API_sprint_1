@@ -1,5 +1,4 @@
 from uuid import UUID
-from typing import Optional
 
 from models.base import OrjsonBaseModel
 from models.genre import Genre
@@ -8,7 +7,7 @@ from models.genre import Genre
 class Film(OrjsonBaseModel):
     id: UUID
     title: str
-    imdb_rating: Optional[float]
+    imdb_rating: float | None
 
 
 class FilmPerson(OrjsonBaseModel):
