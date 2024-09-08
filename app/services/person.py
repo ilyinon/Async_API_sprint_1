@@ -2,7 +2,6 @@ import hashlib
 import json
 import logging
 from functools import lru_cache
-from typing import Optional
 from uuid import UUID
 
 from core.config import settings
@@ -69,7 +68,7 @@ class PersonService:
             person_films.append(person_film)
         return person_films
 
-    async def get_by_id(self, person_id: UUID) -> Optional[Person]:
+    async def get_by_id(self, person_id: UUID) -> Person | None:
         person = await self._person_from_cache(person_id)
         if not person:
             person = await self._get_person_from_elastic(person_id)
@@ -169,7 +168,7 @@ class PersonService:
 
         return persons
 
-    async def _get_person_from_elastic(self, person_id: UUID) -> Optional[Person]:
+    async def _get_person_from_elastic(self, person_id: UUID) -> Person | None:
         try:
             doc = await self.elastic.get(index="persons", id=person_id)
         except NotFoundError:
@@ -183,7 +182,7 @@ class PersonService:
         logger.debug(f"Retrieved person {answer} from elastic")
         return Person(**answer)
 
-    async def _person_from_cache(self, person_id: UUID) -> Optional[Person]:
+    async def _person_from_cache(self, person_id: UUID) -> Person | None:
         data = await self.redis.get(str(person_id))
         if not data:
             return None

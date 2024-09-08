@@ -2,7 +2,6 @@ import hashlib
 import json
 import logging
 from functools import lru_cache
-from typing import Optional
 from uuid import UUID
 
 from core.config import settings
@@ -21,7 +20,7 @@ class FilmService:
         self.redis = redis
         self.elastic = elastic
 
-    async def get_by_id(self, film_id: UUID) -> Optional[FilmDetail]:
+    async def get_by_id(self, film_id: UUID) -> FilmDetail | None:
         film = await self._film_from_cache(film_id)
         if not film:
             film = await self._get_film_from_elastic(film_id)
@@ -102,7 +101,7 @@ class FilmService:
         logger.debug(f"Searched films {films_list}")
         return [Film(**get_film["_source"]) for get_film in films_list["hits"]["hits"]]
 
-    async def _get_film_from_elastic(self, film_id: UUID) -> Optional[FilmDetail]:
+    async def _get_film_from_elastic(self, film_id: UUID) -> FilmDetail | None:
         try:
             doc = await self.elastic.get(index="movies", id=film_id)
             genres = doc["_source"].get("genres", [])
@@ -154,7 +153,7 @@ class FilmService:
         logger.debug("Got film details {film_data}")
         return FilmDetail(**film_data)
 
-    async def _film_from_cache(self, film_id: UUID) -> Optional[Film]:
+    async def _film_from_cache(self, film_id: UUID) -> Film | None:
         data = await self.redis.get(str(film_id))
         if not data:
             return None
